@@ -82,6 +82,23 @@ class ConformanceTest {
     }
 
     @Test
+    fun anExperimentAnswersWithTheServersVariant() {
+        val request = stubbed.experimentRequest("pricing", listOf("control", "new"), userId = "user-1")
+        assertEquals("/v1/experiment", request.path)
+        assertEquals(Json.parseToJsonElement("""{"project":"p","experiment":"pricing","variants":["control","new"],"user_id":"user-1"}"""), Json.parseToJsonElement(request.body))
+        answers.add { TransportResponse(200, """{"experiment":"pricing","variant":"new"}""") }
+        assertEquals("new", stubbed.experiment("pricing", listOf("control", "new"), userId = "user-1"))
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun aDisabledExperimentIsItsFirstVariant() {
+        stubbed.disabled = true
+        assertEquals("control", stubbed.experiment("pricing", listOf("control", "new")))
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun disabledTrackingSendsNothing() {
         stubbed.disabled = true
         stubbed.track("x", "y")

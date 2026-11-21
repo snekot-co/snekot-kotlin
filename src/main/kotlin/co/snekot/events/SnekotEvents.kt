@@ -89,6 +89,21 @@ class SnekotEvents @JvmOverloads constructor(
     fun subscribe(email: String, name: String? = null, properties: Map<String, Any> = emptyMap(), source: String? = null, notify: Boolean? = null) =
         send(subscribeRequest(email, name, properties, source, notify))
 
+    /**
+     * Which variant of an A/B test a person gets. The same person always gets the same one.
+     * With [disabled] set it is the first variant and nothing is sent.
+     * @param variants two to eight names; the first is the one the others are measured against, so keep the order the same everywhere
+     * @param userId the person, when they are known
+     * @param ip for someone with no id, asked from a server: their address, which is not stored
+     * @param userAgent sent along with [ip]
+     */
+    @JvmOverloads
+    fun experiment(name: String, variants: List<String>, userId: String? = null, ip: String? = null, userAgent: String? = null): String {
+        require(variants.isNotEmpty()) { "An experiment needs its variants." }
+        if (disabled) return variants.first()
+        return Json.stringField(request(experimentRequest(name, variants, userId, ip, userAgent)), "variant") ?: variants.first()
+    }
+
     inner class Insight {
         /** Sets an insight to a value: a string or a number. */
         @JvmOverloads
@@ -116,10 +131,17 @@ class SnekotEvents @JvmOverloads constructor(
 
     fun insightIncrementRequest(title: String, value: Number, icon: String? = null) = request("PATCH", "/v1/insight", mapOf("title" to title, "value" to mapOf("\$inc" to value), "icon" to icon))
 
+    fun experimentRequest(name: String, variants: List<String>, userId: String? = null, ip: String? = null, userAgent: String? = null) =
+        request("POST", "/v1/experiment", mapOf("experiment" to name, "variants" to variants, "user_id" to userId, "ip" to ip, "user_agent" to userAgent))
+
     private fun request(method: String, path: String, fields: Map<String, Any?>) = WireRequest(method, path, Json.encode(fields + ("project" to project)))
 
     private fun send(request: WireRequest) {
-        if (disabled) return
+        if (!disabled) request(request)
+    }
+
+    /** Sends one request, with one retry, and gives back the body the server answered with. */
+    private fun request(request: WireRequest): String {
         val headers = mapOf("Content-Type" to "application/json", "Authorization" to "Bearer $token")
         // One retry, and only where trying again can help: the network failed or the server did. A refusal is final.
         var retried = false
@@ -127,7 +149,7 @@ class SnekotEvents @JvmOverloads constructor(
             val failure: UnreachableException = try {
                 val response = transport.send(request.method, endpoint + request.path, headers, request.body)
                 when {
-                    response.status in 200..299 -> return
+                    response.status in 200..299 -> return response.body
                     response.status >= 500 -> UnreachableException("The server answered ${response.status}.")
                     else -> throw RefusedException(response.status, Json.stringField(response.body, "error") ?: "The server answered ${response.status}.")
                 }

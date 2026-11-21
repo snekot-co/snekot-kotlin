@@ -23,6 +23,12 @@ events.insight.track("MRR", "$1,289")
 events.insight.increment("Orders")
 ```
 
+`experiment` asks which variant of an [A/B test](https://snekot.co/docs/experiments) a person gets:
+
+```kotlin
+val variant = events.experiment("pricing-page", listOf("control", "annual-first"), userId = "user-123")
+```
+
 Use a private key (`sk_…`) on a server, and a **public** key (`pk_…`) in an app that ships to other people's devices. See [Keys](https://snekot.co/docs/keys).
 
 It works from Java too; every optional argument has an overload. Calls block until the server answers, so run them off the main thread. From a coroutine: `withContext(Dispatchers.IO) { events.track(…) }`.
