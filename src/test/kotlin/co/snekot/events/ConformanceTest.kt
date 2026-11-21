@@ -104,4 +104,84 @@ class ConformanceTest {
         stubbed.track("x", "y")
         assertEquals(0, calls)
     }
+
+    // The offline queue
+
+    private fun folder() = java.nio.file.Files.createTempDirectory("snekot-tests").toFile()
+    private fun eventOf(body: String) = Json.parseToJsonElement(body).jsonObject["event"]?.jsonPrimitive?.content
+    private val down = Transport { _, _, _, _ -> throw java.io.IOException("down") }
+
+    @Test
+    fun whatCannotBeSentIsKeptAndSurvivesARestart() {
+        val directory = folder()
+        val offline = SnekotEvents(token = "pk_test", project = "p", transport = down, queue = OfflineQueue(directory))
+        offline.track("a", "first")
+        offline.identify("u", mapOf("plan" to "pro"))
+        assertEquals(2, OfflineQueue(directory).count)
+    }
+
+    @Test
+    fun whatWasKeptGoesOutFirstAndInOrder() {
+        val directory = folder()
+        val offline = SnekotEvents(token = "sk_test", project = "p", transport = down, queue = OfflineQueue(directory))
+        offline.track("a", "first", description = "a tab\tand a line\nbreak")
+        offline.track("a", "second")
+
+        val sent = mutableListOf<String>()
+        val queue = OfflineQueue(directory)
+        val online = SnekotEvents(token = "sk_test", project = "p", transport = { _, _, _, body -> sent.add(body); TransportResponse(200, "{}") }, queue = queue)
+        online.track("a", "third")
+        assertEquals(listOf("first", "second", "third"), sent.map(::eventOf))
+        assertEquals(listOf(true, true, false), sent.map { "timestamp" in Json.parseToJsonElement(it).jsonObject }, "a kept event carries the moment it happened; a live one does not")
+        assertEquals("a tab\tand a line\nbreak", Json.parseToJsonElement(sent[0]).jsonObject["description"]!!.jsonPrimitive.content)
+        assertEquals(0, queue.count)
+        assertTrue(directory.listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun withAPublicKeyAKeptEventCarriesNoTime() {
+        val directory = folder()
+        SnekotEvents(token = "pk_test", project = "p", transport = down, queue = OfflineQueue(directory)).track("a", "first")
+        val sent = mutableListOf<String>()
+        SnekotEvents(token = "pk_test", project = "p", transport = { _, _, _, body -> sent.add(body); TransportResponse(200, "{}") }, queue = OfflineQueue(directory)).flush()
+        assertEquals(listOf(false), sent.map { "timestamp" in Json.parseToJsonElement(it).jsonObject }, "the server refuses a time from a public key")
+    }
+
+    @Test
+    fun aRefusalIsThrownAndNeverKept() {
+        val queue = OfflineQueue(folder())
+        val events = SnekotEvents(token = "pk_test", project = "p", transport = { _, _, _, _ -> TransportResponse(400, "{\"error\":\"no\"}") }, queue = queue)
+        assertIs<RefusedException>(runCatching { events.track("Not Valid", "x") }.exceptionOrNull())
+        assertEquals(0, queue.count)
+    }
+
+    @Test
+    fun aKeptEventTheServerRefusesIsDroppedAndTheRestGoOut() {
+        val queue = OfflineQueue(folder())
+        queue.add(WireRequest("POST", "/v1/log", "{\"event\":\"bad\"}"))
+        queue.add(WireRequest("POST", "/v1/log", "{\"event\":\"good\"}"))
+        val sent = mutableListOf<String?>()
+        val events = SnekotEvents(token = "pk_test", project = "p", transport = { _, _, _, body -> sent.add(eventOf(body)); TransportResponse(if (eventOf(body) == "bad") 400 else 200, "{}") }, queue = queue)
+        assertEquals(0, events.flush())
+        assertEquals(listOf<String?>("bad", "good"), sent)
+    }
+
+    @Test
+    fun tooManyRequestsKeepsEverythingForLater() {
+        val queue = OfflineQueue(folder())
+        queue.add(WireRequest("POST", "/v1/log", "{\"event\":\"one\"}"))
+        queue.add(WireRequest("POST", "/v1/log", "{\"event\":\"two\"}"))
+        val events = SnekotEvents(token = "pk_test", project = "p", transport = { _, _, _, _ -> TransportResponse(429, "{\"error\":\"wait\"}") }, queue = queue)
+        assertEquals(2, events.flush())
+    }
+
+    @Test
+    fun theQueueKeepsTheNewestAndDropsTheOld() {
+        val queue = OfflineQueue(folder(), limit = 2, maxAge = java.time.Duration.ofMinutes(1))
+        queue.add(WireRequest("POST", "/v1/log", "{\"event\":\"expired\"}"), at = System.currentTimeMillis() - 120_000)
+        listOf("one", "two", "three").forEach { queue.add(WireRequest("POST", "/v1/log", "{\"event\":\"$it\"}")) }
+        val sent = mutableListOf<String?>()
+        SnekotEvents(token = "pk_test", project = "p", transport = { _, _, _, body -> sent.add(eventOf(body)); TransportResponse(200, "{}") }, queue = queue).flush()
+        assertEquals(listOf<String?>("two", "three"), sent)
+    }
 }

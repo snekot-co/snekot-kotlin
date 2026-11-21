@@ -48,6 +48,8 @@ class SnekotEvents @JvmOverloads constructor(
     /** Makes every call succeed without sending anything, for tests and previews. */
     @Volatile var disabled: Boolean = false,
     transport: Transport? = null,
+    /** Keeps what could not be sent and sends it later. With one, a call that gets no answer no longer throws. */
+    private val queue: OfflineQueue? = null,
 ) {
     private val endpoint = endpoint.trimEnd('/')
     private val transport: Transport = transport ?: JdkTransport(timeout)
@@ -71,7 +73,23 @@ class SnekotEvents @JvmOverloads constructor(
         tags: Map<String, Any> = emptyMap(),
         parser: Parser? = null,
         timestamp: Long? = null,
-    ) = send(trackRequest(channel, event, description, userId, icon, notify, tags, parser, timestamp))
+    ) = send(
+        trackRequest(channel, event, description, userId, icon, notify, tags, parser, timestamp),
+        // An event that has to wait is kept with the moment it happened, so it lands in the feed at the right time.
+        // A public key may not set a time, so with one the event lands when it is finally sent.
+        keeping = if (queue != null && timestamp == null && !token.startsWith("pk_")) trackRequest(channel, event, description, userId, icon, notify, tags, parser, System.currentTimeMillis() / 1000) else null,
+    )
+
+    /**
+     * Sends what the queue is holding. Call it when the app starts or comes back online; every other call does it
+     * too, before sending its own. It answers with how many events are still waiting, and is 0 without a queue.
+     */
+    fun flush(): Int {
+        val queue = queue ?: return 0
+        if (disabled) return 0
+        queue.drain { request(it) }
+        return queue.count
+    }
 
     /** Sets properties on a user; keys sent again replace their old values. */
     fun identify(userId: String, properties: Map<String, Any>) = send(identifyRequest(userId, properties))
@@ -136,8 +154,23 @@ class SnekotEvents @JvmOverloads constructor(
 
     private fun request(method: String, path: String, fields: Map<String, Any?>) = WireRequest(method, path, Json.encode(fields + ("project" to project)))
 
-    private fun send(request: WireRequest) {
-        if (!disabled) request(request)
+    private fun send(request: WireRequest, keeping: WireRequest? = null) {
+        if (disabled) return
+        val queue = queue
+        if (queue == null) {
+            request(request)
+            return
+        }
+        // What is already waiting goes first. If it cannot, this one waits behind it, so nothing arrives out of order.
+        if (!queue.drain { request(it) }) {
+            queue.add(keeping ?: request)
+            return
+        }
+        try {
+            request(request)
+        } catch (unreachable: UnreachableException) {
+            queue.add(keeping ?: request)
+        }
     }
 
     /** Sends one request, with one retry, and gives back the body the server answered with. */

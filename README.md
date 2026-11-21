@@ -6,7 +6,7 @@ Java 11 or newer. No dependencies beyond the Kotlin standard library.
 
 ## Install
 
-The SDK is one file with no dependencies. Until it is on Maven Central, copy [`SnekotEvents.kt`](src/main/kotlin/co/snekot/events/SnekotEvents.kt) into your project, keeping its package `co.snekot.events`.
+The SDK is two files with no dependencies. Until it is on Maven Central, copy [`SnekotEvents.kt`](src/main/kotlin/co/snekot/events/SnekotEvents.kt) and [`OfflineQueue.kt`](src/main/kotlin/co/snekot/events/OfflineQueue.kt) into your project, keeping their package `co.snekot.events`.
 
 ## Use
 
@@ -45,6 +45,20 @@ val events = SnekotEvents(token = token, project = "acme-store", transport = { m
     http.newCall(request.build()).execute().use { TransportResponse(it.code, it.body?.string().orEmpty()) }
 })
 ```
+
+### Offline
+
+A phone is not always online. Give the client a queue, and a call that gets no answer is kept on the device instead of thrown:
+
+```kotlin
+val events = SnekotEvents(token = token, project = "acme-store", queue = OfflineQueue(context.filesDir))
+```
+
+- What was kept goes out, oldest first, before the next call that gets through. `events.flush()` does it on demand, such as when the app starts.
+- At most 500 events are kept, for at most 7 days; `OfflineQueue(directory, limit, maxAge)` changes both. `clear()` forgets them, for when someone signs out.
+- A refusal is still thrown and never kept. If the server says there are too many requests for now, what is waiting stays for the next try.
+- The bodies wait in a file in the directory you give. The key is not written to it.
+- With a public key, a kept event shows in the feed at the time it was finally sent, because a public key may not set a time. With a private key it keeps the moment it happened, and, like any event from the past, does not send a push notification.
 
 ### Behaviour
 
