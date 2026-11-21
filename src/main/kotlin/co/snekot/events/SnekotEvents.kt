@@ -39,7 +39,7 @@ data class WireRequest(val method: String, val path: String, val body: String)
 
 enum class Parser { MARKDOWN, TEXT }
 
-class SnekotEvents(
+class SnekotEvents @JvmOverloads constructor(
     private val token: String,
     val project: String,
     endpoint: String = DEFAULT_ENDPOINT,
@@ -60,6 +60,7 @@ class SnekotEvents(
      * @param tags values are strings, numbers or booleans
      * @param timestamp unix seconds; a past moment makes this a backfill, stored at that time and never pushed to a phone
      */
+    @JvmOverloads
     fun track(
         channel: String,
         event: String,
@@ -76,6 +77,7 @@ class SnekotEvents(
     fun identify(userId: String, properties: Map<String, Any>) = send(identifyRequest(userId, properties))
 
     /** Describes a group such as a company, and puts [userId] in it when given. */
+    @JvmOverloads
     fun group(groupId: String, userId: String? = null, properties: Map<String, Any> = emptyMap()) = send(groupRequest(groupId, userId, properties))
 
     /**
@@ -83,14 +85,17 @@ class SnekotEvents(
      * @param source the page or screen the signup came from, such as `/blog/launch`
      * @param notify push the signup to the phones of everyone on the project
      */
+    @JvmOverloads
     fun subscribe(email: String, name: String? = null, properties: Map<String, Any> = emptyMap(), source: String? = null, notify: Boolean? = null) =
         send(subscribeRequest(email, name, properties, source, notify))
 
     inner class Insight {
         /** Sets an insight to a value: a string or a number. */
+        @JvmOverloads
         fun track(title: String, value: Any, icon: String? = null) = send(insightTrackRequest(title, value, icon))
 
         /** Adds to an insight's number, starting from 0 if it has none. Negative subtracts. */
+        @JvmOverloads
         fun increment(title: String, value: Number = 1, icon: String? = null) = send(insightIncrementRequest(title, value, icon))
     }
 
@@ -163,7 +168,8 @@ internal object Json {
         is String -> quote(value)
         is Boolean -> value.toString()
         is Int, is Long, is Short, is Byte -> value.toString()
-        is Number -> value.toDouble().let { if (it == Math.floor(it) && !it.isInfinite() && Math.abs(it) < 1e15) it.toLong().toString() else it.toString() }
+        // JSON has no NaN or infinity; they go as null, which the server answers with a sentence instead of a parse error.
+        is Number -> value.toDouble().let { if (it.isNaN() || it.isInfinite()) "null" else if (it == Math.floor(it) && Math.abs(it) < 1e15) it.toLong().toString() else it.toString() }
         is Map<*, *> -> TreeMap(value.filterValues { it != null }.mapKeys { it.key.toString() }).entries.joinToString(",", "{", "}") { quote(it.key) + ":" + encode(it.value) }
         is Iterable<*> -> value.joinToString(",", "[", "]") { encode(it) }
         else -> quote(value.toString())
@@ -183,8 +189,10 @@ internal object Json {
         append('"')
     }
 
-    /** The value of a top-level string field in a JSON object, such as the `error` of a refusal. */
-    fun stringField(json: String, name: String): String? {
+    /** The value of a top-level string field in a JSON object, such as the `error` of a refusal. Null if the text is not what was expected. */
+    fun stringField(json: String, name: String): String? = runCatching { readStringField(json, name) }.getOrNull()
+
+    private fun readStringField(json: String, name: String): String? {
         val start = Regex("\"" + Regex.escape(name) + "\"\\s*:\\s*\"").find(json)?.range?.last?.plus(1) ?: return null
         val out = StringBuilder()
         var index = start

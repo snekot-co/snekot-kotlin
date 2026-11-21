@@ -59,6 +59,14 @@ class ConformanceTest {
     }
 
     @Test
+    fun aRefusalWithABrokenBodyStillSurfacesAsARefusal() {
+        answers.add { TransportResponse(400, "{\"error\":\"bad \\u12") }
+        val refusal = runCatching { stubbed.track("x", "y") }.exceptionOrNull()
+        assertIs<RefusedException>(refusal)
+        assertEquals("The server answered 400.", refusal.message)
+    }
+
+    @Test
     fun aServerErrorIsRetriedOnce() {
         answers.add { TransportResponse(503, "{}") }
         assertTrue(runCatching { stubbed.track("x", "y") }.isSuccess)
