@@ -4,11 +4,9 @@ The [Snekot](https://snekot.co) SDK for Kotlin and the JVM. Post product events,
 
 Java 11 or newer. No dependencies beyond the Kotlin standard library.
 
-```kotlin
-dependencies {
-    implementation("co.snekot:snekot-events:0.1.0")
-}
-```
+## Install
+
+The SDK is one file with no dependencies. Until it is on Maven Central, copy [`SnekotEvents.kt`](src/main/kotlin/co/snekot/events/SnekotEvents.kt) into your project, keeping its package `co.snekot.events`.
 
 ## Use
 
