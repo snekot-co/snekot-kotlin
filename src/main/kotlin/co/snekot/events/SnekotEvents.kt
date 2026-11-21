@@ -76,8 +76,7 @@ class SnekotEvents @JvmOverloads constructor(
     ) = send(
         trackRequest(channel, event, description, userId, icon, notify, tags, parser, timestamp),
         // An event that has to wait is kept with the moment it happened, so it lands in the feed at the right time.
-        // A public key may not set a time, so with one the event lands when it is finally sent.
-        keeping = if (queue != null && timestamp == null && !token.startsWith("pk_")) trackRequest(channel, event, description, userId, icon, notify, tags, parser, System.currentTimeMillis() / 1000) else null,
+        keeping = if (queue != null && timestamp == null) trackRequest(channel, event, description, userId, icon, notify, tags, parser, System.currentTimeMillis() / 1000) else null,
     )
 
     /**

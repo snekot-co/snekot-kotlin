@@ -139,12 +139,12 @@ class ConformanceTest {
     }
 
     @Test
-    fun withAPublicKeyAKeptEventCarriesNoTime() {
+    fun withAPublicKeyAKeptEventCarriesItsTimeToo() {
         val directory = folder()
         SnekotEvents(token = "pk_test", project = "p", transport = down, queue = OfflineQueue(directory)).track("a", "first")
         val sent = mutableListOf<String>()
         SnekotEvents(token = "pk_test", project = "p", transport = { _, _, _, body -> sent.add(body); TransportResponse(200, "{}") }, queue = OfflineQueue(directory)).flush()
-        assertEquals(listOf(false), sent.map { "timestamp" in Json.parseToJsonElement(it).jsonObject }, "the server refuses a time from a public key")
+        assertEquals(listOf(true), sent.map { "timestamp" in Json.parseToJsonElement(it).jsonObject }, "a public key may set a time within the last 7 days")
     }
 
     @Test

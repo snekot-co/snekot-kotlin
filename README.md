@@ -58,7 +58,8 @@ val events = SnekotEvents(token = token, project = "acme-store", queue = Offline
 - At most 500 events are kept, for at most 7 days; `OfflineQueue(directory, limit, maxAge)` changes both. `clear()` forgets them, for when someone signs out.
 - A refusal is still thrown and never kept. If the server says there are too many requests for now, what is waiting stays for the next try.
 - The bodies wait in a file in the directory you give. The key is not written to it.
-- With a public key, a kept event shows in the feed at the time it was finally sent, because a public key may not set a time. With a private key it keeps the moment it happened, and, like any event from the past, does not send a push notification.
+- A kept event keeps the moment it happened. Like any event sent with a time, it is not announced on the live feed and sends no push notification.
+- A public key can place an event up to 7 days back, which is the default age limit. With a public key, keep `maxAge` at 7 days or less: an older event is refused and dropped.
 
 ### Behaviour
 
