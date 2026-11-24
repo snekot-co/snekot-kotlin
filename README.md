@@ -18,7 +18,7 @@ val events = SnekotEvents(token = token, project = "acme-store")
 events.track(channel = "payments", event = "New subscription", icon = "💰", notify = true, tags = mapOf("plan" to "pro"))
 events.identify("user-123", mapOf("plan" to "pro"))
 events.group("acme", userId = "user-123", properties = mapOf("name" to "Acme"))
-events.subscribe("jane@example.com", name = "Jane Park")
+events.subscribe("jane@example.com", name = "Jane Park", language = "sv-SE", timezone = "Europe/Stockholm")
 events.insight.track("MRR", "$1,289")
 events.insight.increment("Orders")
 ```

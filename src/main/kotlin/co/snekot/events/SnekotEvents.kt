@@ -101,10 +101,12 @@ class SnekotEvents @JvmOverloads constructor(
      * Puts an address on the project's newsletter list. Signing it up again changes nothing.
      * @param source the page or screen the signup came from, such as `/blog/launch`
      * @param notify push the signup to the phones of everyone on the project
+     * @param language the person's language, as a tag such as `sv` or `sv-SE`
+     * @param timezone the person's time zone, as its IANA name, such as `Europe/Stockholm`
      */
     @JvmOverloads
-    fun subscribe(email: String, name: String? = null, properties: Map<String, Any> = emptyMap(), source: String? = null, notify: Boolean? = null) =
-        send(subscribeRequest(email, name, properties, source, notify))
+    fun subscribe(email: String, name: String? = null, properties: Map<String, Any> = emptyMap(), source: String? = null, notify: Boolean? = null, language: String? = null, timezone: String? = null) =
+        send(subscribeRequest(email, name, properties, source, notify, language, timezone))
 
     /**
      * Which variant of an A/B test a person gets. The same person always gets the same one.
@@ -141,8 +143,8 @@ class SnekotEvents @JvmOverloads constructor(
     fun groupRequest(groupId: String, userId: String? = null, properties: Map<String, Any> = emptyMap()) =
         request("POST", "/v1/group", mapOf("group_id" to groupId, "user_id" to userId, "properties" to properties.ifEmpty { null }))
 
-    fun subscribeRequest(email: String, name: String? = null, properties: Map<String, Any> = emptyMap(), source: String? = null, notify: Boolean? = null) =
-        request("POST", "/v1/subscribe", mapOf("email" to email, "name" to name, "properties" to properties.ifEmpty { null }, "source" to source, "notify" to notify))
+    fun subscribeRequest(email: String, name: String? = null, properties: Map<String, Any> = emptyMap(), source: String? = null, notify: Boolean? = null, language: String? = null, timezone: String? = null) =
+        request("POST", "/v1/subscribe", mapOf("email" to email, "name" to name, "properties" to properties.ifEmpty { null }, "source" to source, "notify" to notify, "language" to language, "timezone" to timezone))
 
     fun insightTrackRequest(title: String, value: Any, icon: String? = null) = request("POST", "/v1/insight", mapOf("title" to title, "value" to value, "icon" to icon))
 

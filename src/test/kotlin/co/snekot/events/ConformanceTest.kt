@@ -24,7 +24,7 @@ class ConformanceTest {
             client.trackRequest("signups", "Backfilled", timestamp = 1700000000),
             client.identifyRequest("user-1", mapOf("name" to "Jane", "plan" to "pro")),
             client.groupRequest("northwind", userId = "user-1", properties = mapOf("name" to "Northwind")),
-            client.subscribeRequest("jane@example.com", name = "Jane", properties = mapOf("plan" to "pro", "seats" to 3), source = "/blog/launch", notify = true),
+            client.subscribeRequest("jane@example.com", name = "Jane", properties = mapOf("plan" to "pro", "seats" to 3), source = "/blog/launch", notify = true, language = "sv-SE", timezone = "Europe/Stockholm"),
             client.subscribeRequest("jane@example.com"),
             client.insightTrackRequest("MRR", "\$1,289", icon = ":chart_with_upwards_trend:"),
             client.insightIncrementRequest("Orders", 2),
