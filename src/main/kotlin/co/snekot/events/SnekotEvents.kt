@@ -123,6 +123,20 @@ class SnekotEvents @JvmOverloads constructor(
         return Json.stringField(request(experimentRequest(name, variants, userId, ip, userAgent)), "variant") ?: variants.first()
     }
 
+    /**
+     * Whether a feature flag is on for a person. A key that has no flag is off.
+     * With [disabled] set it is off and nothing is sent.
+     * @param key the flag's key, as the Snekot app shows it
+     * @param userId the person, when they are known
+     * @param ip for someone with no id, asked from a server: their address, which is not stored
+     * @param userAgent sent along with [ip]
+     */
+    @JvmOverloads
+    fun flag(key: String, userId: String? = null, ip: String? = null, userAgent: String? = null): Boolean {
+        if (disabled) return false
+        return Json.booleanField(request(flagRequest(key, userId, ip, userAgent)), "on") ?: false
+    }
+
     inner class Insight {
         /** Sets an insight to a value: a string or a number. */
         @JvmOverloads
@@ -152,6 +166,9 @@ class SnekotEvents @JvmOverloads constructor(
 
     fun experimentRequest(name: String, variants: List<String>, userId: String? = null, ip: String? = null, userAgent: String? = null) =
         request("POST", "/v1/experiment", mapOf("experiment" to name, "variants" to variants, "user_id" to userId, "ip" to ip, "user_agent" to userAgent))
+
+    fun flagRequest(key: String, userId: String? = null, ip: String? = null, userAgent: String? = null) =
+        request("POST", "/v1/flag", mapOf("flag" to key, "user_id" to userId, "ip" to ip, "user_agent" to userAgent))
 
     private fun request(method: String, path: String, fields: Map<String, Any?>) = WireRequest(method, path, Json.encode(fields + ("project" to project)))
 
@@ -247,6 +264,10 @@ internal object Json {
 
     /** The value of a top-level string field in a JSON object, such as the `error` of a refusal. Null if the text is not what was expected. */
     fun stringField(json: String, name: String): String? = runCatching { readStringField(json, name) }.getOrNull()
+
+    /** The value of a top-level boolean field in a JSON object, such as the `on` of a flag. Null if it is not there. */
+    fun booleanField(json: String, name: String): Boolean? =
+        Regex("\"" + Regex.escape(name) + "\"\\s*:\\s*(true|false)\\b").find(json)?.groupValues?.get(1)?.let { it == "true" }
 
     private fun readStringField(json: String, name: String): String? {
         val start = Regex("\"" + Regex.escape(name) + "\"\\s*:\\s*\"").find(json)?.range?.last?.plus(1) ?: return null

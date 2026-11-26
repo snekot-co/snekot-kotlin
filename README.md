@@ -29,6 +29,14 @@ events.insight.increment("Orders")
 val variant = events.experiment("pricing-page", listOf("control", "annual-first"), userId = "user-123")
 ```
 
+`flag` asks whether a feature flag is on for a person:
+
+```kotlin
+val on = events.flag("new-checkout", userId = "user-123")
+```
+
+A key that has no flag answers `false`. When the answer cannot be had, the call throws, as every call does; treat that as off.
+
 Use a private key (`sk_…`) on a server, and a **public** key (`pk_…`) in an app that ships to other people's devices. See [Keys](https://snekot.co/docs/keys).
 
 It works from Java too; every optional argument has an overload. Calls block until the server answers, so run them off the main thread. From a coroutine: `withContext(Dispatchers.IO) { events.track(…) }`.

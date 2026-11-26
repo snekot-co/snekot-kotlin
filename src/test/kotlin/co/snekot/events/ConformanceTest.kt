@@ -99,6 +99,54 @@ class ConformanceTest {
     }
 
     @Test
+    fun aFlagAnswersWithWhatTheServerSays() {
+        val request = stubbed.flagRequest("new-checkout", userId = "user-1")
+        assertEquals("POST", request.method)
+        assertEquals("/v1/flag", request.path)
+        assertEquals(Json.parseToJsonElement("""{"project":"p","flag":"new-checkout","user_id":"user-1"}"""), Json.parseToJsonElement(request.body))
+        assertEquals(
+            Json.parseToJsonElement("""{"project":"p","flag":"new-checkout","ip":"203.0.113.7","user_agent":"Mozilla/5.0"}"""),
+            Json.parseToJsonElement(stubbed.flagRequest("new-checkout", ip = "203.0.113.7", userAgent = "Mozilla/5.0").body),
+        )
+        answers.add { TransportResponse(200, """{"flag":"new-checkout","on":true}""") }
+        assertEquals(true, stubbed.flag("new-checkout", userId = "user-1"))
+        answers.add { TransportResponse(200, """{"flag":"new-checkout","on":false}""") }
+        assertEquals(false, stubbed.flag("new-checkout", userId = "user-1"))
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun aFlagWithNoAnswerInTheBodyIsOff() {
+        assertEquals(false, stubbed.flag("new-checkout"))
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun aFlagTheServerRefusesThrows() {
+        answers.add { TransportResponse(403, """{"error":"This key is limited to channels."}""") }
+        val refusal = runCatching { stubbed.flag("new-checkout") }.exceptionOrNull()
+        assertIs<RefusedException>(refusal)
+        assertEquals(403, refusal.status)
+        assertEquals("This key is limited to channels.", refusal.message)
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun aFlagThatGetsNoAnswerThrowsUnreachable() {
+        answers.add { throw java.io.IOException("down") }
+        answers.add { throw java.io.IOException("down") }
+        assertIs<UnreachableException>(runCatching { stubbed.flag("new-checkout") }.exceptionOrNull())
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun aDisabledFlagIsOff() {
+        stubbed.disabled = true
+        assertEquals(false, stubbed.flag("new-checkout"))
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun disabledTrackingSendsNothing() {
         stubbed.disabled = true
         stubbed.track("x", "y")
