@@ -29,7 +29,7 @@ events.insight.increment("Orders")
 val variant = events.experiment("pricing-page", listOf("control", "annual-first"), userId = "user-123")
 ```
 
-`flag` asks whether a feature flag is on for a person:
+`flag` asks whether a [feature flag](https://snekot.co/docs/flags) is on for a person:
 
 ```kotlin
 val on = events.flag("new-checkout", userId = "user-123")
